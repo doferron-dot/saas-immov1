@@ -45,6 +45,7 @@ export interface Operation {
   frais_dossier: number;
   frais_garantie: number;
   autres_frais_acquisition: number;
+  frais_revente: number;
   created_at: string;
   updated_at: string;
 }
