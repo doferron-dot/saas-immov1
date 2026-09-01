@@ -6,11 +6,13 @@ import type { LigneTravauxDB, CategorieTravaux } from "@/lib/db/travaux-lignes";
 import type { FinancementDB } from "@/lib/db/financement";
 import type { OperationInvestisseurDB } from "@/lib/db/operation-investisseur";
 import type { LotMarchandDB } from "@/lib/db/operation-marchand-lots";
+import type { OperationMarchandLocationDB } from "@/lib/db/operation-marchand-location";
 
 const CHAMP =
-  "rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900";
-const LABEL = "text-sm font-medium";
+  "rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent dark:border-zinc-700 dark:bg-zinc-900";
+const LABEL = "text-xs font-medium uppercase tracking-wide text-zinc-500";
 const GROUPE = "flex flex-col gap-1";
+const LEGENDE = "mb-1 flex items-center gap-2 text-sm font-semibold text-accent";
 
 const LIBELLE_CATEGORIE_TRAVAUX: Record<CategorieTravaux, string> = {
   gros_oeuvre: "Gros œuvre",
@@ -47,6 +49,7 @@ export function OperationForm({
   financement,
   investisseur,
   lots,
+  locationMarchand,
   action,
 }: {
   operation: Operation;
@@ -54,6 +57,7 @@ export function OperationForm({
   financement: FinancementDB | null;
   investisseur: OperationInvestisseurDB | null;
   lots: LotMarchandDB[];
+  locationMarchand: OperationMarchandLocationDB | null;
   action: (formData: FormData) => void;
 }) {
   const [lignesTravaux, setLignesTravaux] = useState<LigneTravauxUI[]>(
@@ -97,7 +101,7 @@ export function OperationForm({
   }
 
   return (
-    <form action={action} className="flex flex-col gap-10">
+    <form action={action} className="flex flex-col gap-7">
       <input type="hidden" name="travauxJSON" value={JSON.stringify(lignesTravaux)} />
       {operation.mode === "marchand" && (
         <input type="hidden" name="lotsJSON" value={JSON.stringify(lignesLots)} />
@@ -117,8 +121,8 @@ export function OperationForm({
       </div>
 
       {/* Informations du bien */}
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Informations du bien</legend>
+      <fieldset className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <legend className={LEGENDE}>Informations du bien</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className={GROUPE}>
             <label htmlFor="adresse" className={LABEL}>Adresse</label>
@@ -200,8 +204,8 @@ export function OperationForm({
       </fieldset>
 
       {/* Acquisition */}
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Acquisition</legend>
+      <fieldset className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <legend className={LEGENDE}>Acquisition</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className={GROUPE}>
             <label htmlFor="prix_achat" className={LABEL}>Prix d&apos;achat (€)</label>
@@ -242,8 +246,8 @@ export function OperationForm({
       </fieldset>
 
       {/* Travaux */}
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Travaux</legend>
+      <fieldset className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <legend className={LEGENDE}>Travaux</legend>
         <div className="flex flex-col gap-3">
           {lignesTravaux.map((ligne, index) => (
             <div key={index} className="flex flex-col gap-2 rounded border border-zinc-200 p-3 dark:border-zinc-800 sm:flex-row sm:items-end">
@@ -282,7 +286,7 @@ export function OperationForm({
               <button
                 type="button"
                 onClick={() => retirerLigneTravaux(index)}
-                className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
               >
                 Retirer
               </button>
@@ -292,7 +296,7 @@ export function OperationForm({
         <button
           type="button"
           onClick={ajouterLigneTravaux}
-          className="w-fit rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
+          className="w-fit rounded-md border border-accent/40 px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/10"
         >
           + Ajouter une ligne de travaux
         </button>
@@ -303,8 +307,8 @@ export function OperationForm({
       </fieldset>
 
       {/* Financement */}
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-lg font-semibold">Financement</legend>
+      <fieldset className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <legend className={LEGENDE}>Financement</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className={GROUPE}>
             <label htmlFor="apport" className={LABEL}>Apport (€)</label>
@@ -347,16 +351,24 @@ export function OperationForm({
 
       {/* Spécifique au mode */}
       {operation.mode === "investisseur" ? (
-        <fieldset className="flex flex-col gap-4">
-          <legend className="mb-2 text-lg font-semibold">Location (mode investisseur)</legend>
+        <fieldset className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+          <legend className={LEGENDE}>Location (mode investisseur)</legend>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className={GROUPE}>
               <label htmlFor="loyer_mensuel" className={LABEL}>Loyer mensuel (€, hors charges)</label>
               <input id="loyer_mensuel" name="loyer_mensuel" type="number" min="0" step="0.01" defaultValue={investisseur?.loyer_mensuel ?? 0} className={CHAMP} />
+              <p className="text-xs text-zinc-500">
+                Rendement calculé hors fiscalité des loyers pour l&apos;instant (LMNP, micro-foncier...
+                arrivent dans une prochaine étape).
+              </p>
             </div>
             <div className={GROUPE}>
               <label htmlFor="charges_recuperables" className={LABEL}>Charges récupérables mensuelles (€)</label>
               <input id="charges_recuperables" name="charges_recuperables" type="number" min="0" step="0.01" defaultValue={investisseur?.charges_recuperables ?? 0} className={CHAMP} />
+              <p className="text-xs text-zinc-500">
+                Supposées intégralement refacturées au locataire : neutres sur le rendement calculé
+                (seules les charges non récupérables ci-dessous sont déduites).
+              </p>
             </div>
             <div className={GROUPE}>
               <label htmlFor="charges_non_recuperables" className={LABEL}>Charges non récupérables (€/an)</label>
@@ -377,20 +389,26 @@ export function OperationForm({
             <div className={GROUPE}>
               <label htmlFor="frais_gestion_pct" className={LABEL}>Frais de gestion locative (% des loyers)</label>
               <input id="frais_gestion_pct" name="frais_gestion_pct" type="number" min="0" step="0.01" defaultValue={versPct(investisseur?.frais_gestion_pct)} className={CHAMP} />
+              <p className="text-xs text-zinc-500">Calculés sur les loyers encaissés, donc après vacance locative.</p>
             </div>
             <div className={GROUPE}>
               <label htmlFor="entretien_pct" className={LABEL}>Provision entretien (% des loyers)</label>
               <input id="entretien_pct" name="entretien_pct" type="number" min="0" step="0.01" defaultValue={versPct(investisseur?.entretien_pct)} className={CHAMP} />
+              <p className="text-xs text-zinc-500">Calculée sur les loyers encaissés, donc après vacance locative.</p>
             </div>
             <div className={GROUPE}>
               <label htmlFor="vacance_locative_pct" className={LABEL}>Vacance locative (% des loyers)</label>
               <input id="vacance_locative_pct" name="vacance_locative_pct" type="number" min="0" step="0.01" defaultValue={versPct(investisseur?.vacance_locative_pct)} className={CHAMP} />
+              <p className="text-xs text-zinc-500">
+                Appliquée sur les loyers bruts : réduit d&apos;abord les loyers encaissés, avant le
+                calcul des frais de gestion et de l&apos;entretien ci-dessus.
+              </p>
             </div>
           </div>
         </fieldset>
       ) : (
-        <fieldset className="flex flex-col gap-4">
-          <legend className="mb-2 text-lg font-semibold">Lots à revendre (mode marchand de biens)</legend>
+        <fieldset className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+          <legend className={LEGENDE}>Lots à revendre (mode marchand de biens)</legend>
           <div className="flex flex-col gap-3">
             {lignesLots.map((lot, index) => (
               <div key={index} className="flex flex-col gap-2 rounded border border-zinc-200 p-3 dark:border-zinc-800 sm:flex-row sm:items-end">
@@ -416,7 +434,7 @@ export function OperationForm({
                 <button
                   type="button"
                   onClick={() => retirerLot(index)}
-                  className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                  className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
                 >
                   Retirer
                 </button>
@@ -426,16 +444,94 @@ export function OperationForm({
           <button
             type="button"
             onClick={ajouterLot}
-            className="w-fit rounded border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
+            className="w-fit rounded-md border border-accent/40 px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/10"
           >
             + Ajouter un lot
           </button>
         </fieldset>
       )}
 
+      {/* Location avant revente — un marchand de biens a jusqu'à ~5 ans pour vendre, il peut
+          louer le bien pendant cette période de détention (demande de Dorian, 2026-09-01).
+          Facultatif : laisser la durée à 0 désactive tout revenu locatif dans les calculs. */}
+      {operation.mode === "marchand" && (
+        <fieldset className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+          <legend className={LEGENDE}>Location avant revente (facultatif)</legend>
+          <p className="text-xs text-zinc-500">
+            Si le bien est mis en location pendant la période de détention (avant la revente),
+            renseigne la durée et les mêmes champs que pour une location classique. Laisse la durée
+            à 0 s&apos;il n&apos;y a pas de location.
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className={GROUPE}>
+              <label htmlFor="duree_location_mois" className={LABEL}>Durée de location (mois)</label>
+              <input
+                id="duree_location_mois"
+                name="duree_location_mois"
+                type="number"
+                min="0"
+                defaultValue={locationMarchand?.duree_location_mois ?? 0}
+                className={CHAMP}
+              />
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_loyer_mensuel" className={LABEL}>Loyer mensuel (€, hors charges)</label>
+              <input id="loc_loyer_mensuel" name="loc_loyer_mensuel" type="number" min="0" step="0.01" defaultValue={locationMarchand?.loyer_mensuel ?? 0} className={CHAMP} />
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_charges_recuperables" className={LABEL}>Charges récupérables mensuelles (€)</label>
+              <input id="loc_charges_recuperables" name="loc_charges_recuperables" type="number" min="0" step="0.01" defaultValue={locationMarchand?.charges_recuperables ?? 0} className={CHAMP} />
+              <p className="text-xs text-zinc-500">
+                Supposées intégralement refacturées au locataire : neutres sur le revenu locatif net
+                (seules les charges non récupérables ci-dessous sont déduites).
+              </p>
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_charges_non_recuperables" className={LABEL}>Charges non récupérables (€/an)</label>
+              <input id="loc_charges_non_recuperables" name="loc_charges_non_recuperables" type="number" min="0" step="0.01" defaultValue={locationMarchand?.charges_non_recuperables ?? 0} className={CHAMP} />
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_taxe_fonciere" className={LABEL}>Taxe foncière (€/an)</label>
+              <input id="loc_taxe_fonciere" name="loc_taxe_fonciere" type="number" min="0" step="0.01" defaultValue={locationMarchand?.taxe_fonciere ?? 0} className={CHAMP} />
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_assurance_pno" className={LABEL}>Assurance PNO (€/an)</label>
+              <input id="loc_assurance_pno" name="loc_assurance_pno" type="number" min="0" step="0.01" defaultValue={locationMarchand?.assurance_pno ?? 0} className={CHAMP} />
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_autres_charges" className={LABEL}>Autres charges (€/an)</label>
+              <input id="loc_autres_charges" name="loc_autres_charges" type="number" min="0" step="0.01" defaultValue={locationMarchand?.autres_charges ?? 0} className={CHAMP} />
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_frais_gestion_pct" className={LABEL}>Frais de gestion locative (% des loyers)</label>
+              <input id="loc_frais_gestion_pct" name="loc_frais_gestion_pct" type="number" min="0" step="0.01" defaultValue={versPct(locationMarchand?.frais_gestion_pct)} className={CHAMP} />
+              <p className="text-xs text-zinc-500">Calculés sur les loyers encaissés, donc après vacance locative.</p>
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_entretien_pct" className={LABEL}>Provision entretien (% des loyers)</label>
+              <input id="loc_entretien_pct" name="loc_entretien_pct" type="number" min="0" step="0.01" defaultValue={versPct(locationMarchand?.entretien_pct)} className={CHAMP} />
+              <p className="text-xs text-zinc-500">Calculée sur les loyers encaissés, donc après vacance locative.</p>
+            </div>
+            <div className={GROUPE}>
+              <label htmlFor="loc_vacance_locative_pct" className={LABEL}>Vacance locative (% des loyers)</label>
+              <input id="loc_vacance_locative_pct" name="loc_vacance_locative_pct" type="number" min="0" step="0.01" defaultValue={versPct(locationMarchand?.vacance_locative_pct)} className={CHAMP} />
+              <p className="text-xs text-zinc-500">
+                Appliquée sur les loyers bruts : réduit d&apos;abord les loyers encaissés, avant le
+                calcul des frais de gestion et de l&apos;entretien ci-dessus.
+              </p>
+            </div>
+            <p className="text-xs text-zinc-500 sm:col-span-2">
+              Le revenu locatif net obtenu (loyers encaissés − charges) est proraté sur la durée de
+              location ci-dessus et ajouté à la marge — le coût du crédit n&apos;est pas déduit une
+              deuxième fois ici (déjà compté dans le coût total de l&apos;opération).
+            </p>
+          </div>
+        </fieldset>
+      )}
+
       <button
         type="submit"
-        className="w-fit rounded bg-zinc-900 px-6 py-3 font-medium text-white dark:bg-white dark:text-zinc-900"
+        className="w-fit rounded-md bg-accent px-5 py-2.5 font-medium text-accent-foreground transition-opacity hover:opacity-90"
       >
         Enregistrer
       </button>

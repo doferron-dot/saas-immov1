@@ -7,6 +7,7 @@ import { remplacerTravauxLignes, type CategorieTravaux } from "@/lib/db/travaux-
 import { enregistrerFinancement, type TypeDiffereDB } from "@/lib/db/financement";
 import { enregistrerOperationInvestisseur } from "@/lib/db/operation-investisseur";
 import { remplacerLotsMarchand } from "@/lib/db/operation-marchand-lots";
+import { enregistrerLocationMarchand } from "@/lib/db/operation-marchand-location";
 import { verifierSession } from "@/lib/auth/dal";
 
 /** Crée une opération vide dans le mode choisi et redirige vers son édition. */
@@ -150,6 +151,22 @@ export async function enregistrerDetailOperation(
         "lotsJSON"
       );
       await remplacerLotsMarchand(supabase, operationId, lots);
+
+      // Location avant revente — facultative (durée à 0 = pas de location, cf.
+      // lib/calc-engine/marchand.ts). Toujours enregistrée (comme operation_investisseur),
+      // le moteur de calcul ignore les valeurs si la durée est nulle.
+      await enregistrerLocationMarchand(supabase, operationId, {
+        duree_location_mois: nombre(formData, "duree_location_mois"),
+        loyer_mensuel: nombre(formData, "loc_loyer_mensuel"),
+        charges_recuperables: nombre(formData, "loc_charges_recuperables"),
+        charges_non_recuperables: nombre(formData, "loc_charges_non_recuperables"),
+        taxe_fonciere: nombre(formData, "loc_taxe_fonciere"),
+        assurance_pno: nombre(formData, "loc_assurance_pno"),
+        frais_gestion_pct: pourcentageEnFraction(formData, "loc_frais_gestion_pct"),
+        entretien_pct: pourcentageEnFraction(formData, "loc_entretien_pct"),
+        vacance_locative_pct: pourcentageEnFraction(formData, "loc_vacance_locative_pct"),
+        autres_charges: nombre(formData, "loc_autres_charges"),
+      });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue lors de l'enregistrement.";

@@ -11,29 +11,27 @@
  * ce fichier reste importable depuis un futur test Vitest sans dépendre de la résolution
  * d'alias de chemin (voir vitest.config.ts).
  *
- * Choix volontaire : pas de graphiques dans le PDF. @react-pdf/renderer ne sait pas
- * facilement rendre un <svg> arbitraire comme components/operations/graphique-lignes.tsx
- * (fait pour le rendu HTML/navigateur) — le rapport présente donc la projection sous
- * forme de tableaux (mêmes chiffres, lisibles à l'impression). À revoir si Dorian préfère
- * de vrais graphiques dans le PDF plus tard (composants <Svg>/<Path> dédiés à écrire).
+ * La projection pluriannuelle inclut les mêmes 3 graphiques que la page de l'opération
+ * (lib/pdf/graphique-pdf.tsx, primitives Svg/Polyline/Circle de @react-pdf/renderer — pas
+ * un <svg> HTML, react-pdf ne sait pas le rendre directement), suivis des tableaux
+ * détaillés (mêmes chiffres, pour la lecture précise à l'impression).
  */
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
+import { GraphiquePdf } from "./graphique-pdf";
+// Formatage (euros, %, date) extrait dans lib/pdf/formatage.ts -- fichier .ts pur (sans
+// JSX ni dépendance à @react-pdf/renderer) pour rester testable par Vitest. Voir ce
+// fichier pour le détail du contournement de police (espace fine insécable non rendue).
+import { formaterEuro, formaterPct, formaterEuroCompact, formaterDate } from "./formatage";
 import type { Operation } from "../db/operations";
 import type { ResultatsOperation } from "../operations/calculer-resultats";
 import type { ResultatScenarioMarchand, TypeScenarioMarchand } from "../operations/calculer-scenarios-marchand";
-import type { PointProjection, ProfilProjection } from "../calc-engine/projection";
+import type { PointProjection, ProfilProjection, ProjectionParProfil } from "../calc-engine/projection";
 
-function formaterEuro(valeur: number): string {
-  return valeur.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-}
+export { formaterEuro, formaterPct, formaterEuroCompact, formaterDate } from "./formatage";
 
-function formaterPct(valeur: number): string {
-  return `${(valeur * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
-}
-
-function formaterDate(date: Date): string {
-  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-}
+const COULEUR_PRUDENT = "#71717a";
+const COULEUR_OPTIMISTE = "#16a34a";
+const COULEUR_CREDIT = "#dc2626";
 
 const styles = StyleSheet.create({
   page: { paddingTop: 36, paddingBottom: 48, paddingHorizontal: 40, fontSize: 10, color: "#18181b" },
@@ -99,6 +97,14 @@ function TableauScenarios({ scenarios }: { scenarios: ResultatScenarioMarchand[]
   const lignes: { libelle: string; valeurs: (s: ResultatScenarioMarchand) => string }[] = [
     { libelle: "Chiffre d'affaires total", valeurs: (s) => formaterEuro(s.detail.chiffreAffairesTotal) },
     { libelle: "Total travaux", valeurs: (s) => formaterEuro(s.totalTravaux) },
+    ...(scenarios.some((s) => s.detail.revenuLocatifNet > 0)
+      ? [
+          {
+            libelle: "Revenu locatif net (avant revente)",
+            valeurs: (s: ResultatScenarioMarchand) => formaterEuro(s.detail.revenuLocatifNet),
+          },
+        ]
+      : []),
     { libelle: "Coût total de l'opération", valeurs: (s) => formaterEuro(s.detail.coutTotalOperation) },
     { libelle: "Marge", valeurs: (s) => formaterEuro(s.detail.marge) },
     { libelle: "Marge %", valeurs: (s) => formaterPct(s.detail.margePct) },
@@ -158,13 +164,80 @@ function TableauProjection({ profil, points }: { profil: ProfilProjection; point
   );
 }
 
+/** Mêmes 3 graphiques que ProjectionSection sur la page de l'opération (mêmes séries,
+ * mêmes couleurs), rendus avec les primitives SVG de @react-pdf/renderer plutôt que du
+ * SVG HTML — voir lib/pdf/graphique-pdf.tsx. */
+function ProjectionGraphiquesPdf({ projection }: { projection: ProjectionParProfil }) {
+  return (
+    <View style={{ marginBottom: 6 }}>
+      <GraphiquePdf
+        titre="Valeur du bien vs capital restant dû"
+        formaterY={formaterEuroCompact}
+        series={[
+          {
+            label: "Valeur du bien (prudent)",
+            couleur: COULEUR_PRUDENT,
+            points: projection.prudent.map((p) => ({ x: p.annee, y: p.valeurBien })),
+          },
+          {
+            label: "Valeur du bien (optimiste)",
+            couleur: COULEUR_OPTIMISTE,
+            points: projection.optimiste.map((p) => ({ x: p.annee, y: p.valeurBien })),
+          },
+          {
+            label: "Capital restant dû",
+            couleur: COULEUR_CREDIT,
+            points: projection.prudent.map((p) => ({ x: p.annee, y: p.capitalRestantDu })),
+          },
+        ]}
+      />
+      <GraphiquePdf
+        titre="Cash-flow cumulé"
+        formaterY={formaterEuroCompact}
+        series={[
+          {
+            label: "Prudent",
+            couleur: COULEUR_PRUDENT,
+            points: projection.prudent.map((p) => ({ x: p.annee, y: p.cashFlowCumule })),
+          },
+          {
+            label: "Optimiste",
+            couleur: COULEUR_OPTIMISTE,
+            points: projection.optimiste.map((p) => ({ x: p.annee, y: p.cashFlowCumule })),
+          },
+        ]}
+      />
+      <GraphiquePdf
+        titre="Patrimoine net (si revente à cette échéance)"
+        formaterY={formaterEuroCompact}
+        series={[
+          {
+            label: "Prudent",
+            couleur: COULEUR_PRUDENT,
+            points: projection.prudent.map((p) => ({ x: p.annee, y: p.patrimoineNet })),
+          },
+          {
+            label: "Optimiste",
+            couleur: COULEUR_OPTIMISTE,
+            points: projection.optimiste.map((p) => ({ x: p.annee, y: p.patrimoineNet })),
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
 export interface RapportOperationProps {
   operation: Operation;
   resultats: ResultatsOperation;
   scenariosMarchand?: ResultatScenarioMarchand[] | null;
+  /** Aucun financement saisi (pas de ligne financement, ou montant emprunté à 0) : achat
+   * comptant — affiche "Payé cash" plutôt qu'un "0 €", même traitement que la page de
+   * l'opération (app/operations/[id]/page.tsx). */
+  payeCash: boolean;
 }
 
-export function RapportOperation({ operation, resultats, scenariosMarchand }: RapportOperationProps) {
+export function RapportOperation({ operation, resultats, scenariosMarchand, payeCash }: RapportOperationProps) {
   const adresseLigne = [operation.adresse, operation.code_postal, operation.ville].filter(Boolean).join(" ");
 
   return (
@@ -188,8 +261,14 @@ export function RapportOperation({ operation, resultats, scenariosMarchand }: Ra
             <Chiffre libelle="Prix d'achat" valeur={formaterEuro(operation.prix_achat)} />
             <Chiffre libelle="Coût total d'acquisition" valeur={formaterEuro(resultats.coutTotalAcquisition)} />
             <Chiffre libelle="Total travaux (avec imprévus)" valeur={formaterEuro(resultats.totalTravaux)} />
-            <Chiffre libelle="Mensualité crédit" valeur={formaterEuro(resultats.mensualiteCredit)} />
-            <Chiffre libelle="Coût total du crédit" valeur={formaterEuro(resultats.coutTotalCredit)} />
+            <Chiffre
+              libelle="Mensualité crédit"
+              valeur={payeCash ? "Payé cash" : formaterEuro(resultats.mensualiteCredit)}
+            />
+            <Chiffre
+              libelle="Coût total du crédit"
+              valeur={payeCash ? "Payé cash" : formaterEuro(resultats.coutTotalCredit)}
+            />
             <Chiffre libelle="Montant total investi" valeur={formaterEuro(resultats.montantTotalInvesti)} />
             {resultats.investisseur && (
               <>
@@ -201,6 +280,12 @@ export function RapportOperation({ operation, resultats, scenariosMarchand }: Ra
             {resultats.marchand && (
               <>
                 <Chiffre libelle="Chiffre d'affaires total" valeur={formaterEuro(resultats.marchand.chiffreAffairesTotal)} />
+                {resultats.marchand.revenuLocatifNet > 0 && (
+                  <Chiffre
+                    libelle="Revenu locatif net (avant revente)"
+                    valeur={formaterEuro(resultats.marchand.revenuLocatifNet)}
+                  />
+                )}
                 <Chiffre libelle="Marge" valeur={formaterEuro(resultats.marchand.marge)} />
                 <Chiffre libelle="Marge %" valeur={formaterPct(resultats.marchand.margePct)} />
                 <Chiffre libelle="ROI" valeur={formaterPct(resultats.marchand.roi)} />
@@ -281,6 +366,7 @@ export function RapportOperation({ operation, resultats, scenariosMarchand }: Ra
               les frais de revente estimés (6 %).
             </Text>
             <View style={{ marginTop: 8 }}>
+              <ProjectionGraphiquesPdf projection={resultats.projection} />
               <TableauProjection profil="prudent" points={resultats.projection.prudent} />
               <TableauProjection profil="optimiste" points={resultats.projection.optimiste} />
             </View>

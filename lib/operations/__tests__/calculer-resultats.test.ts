@@ -5,6 +5,7 @@ import type { LigneTravauxDB } from "../../db/travaux-lignes";
 import type { FinancementDB } from "../../db/financement";
 import type { OperationInvestisseurDB } from "../../db/operation-investisseur";
 import type { LotMarchandDB } from "../../db/operation-marchand-lots";
+import type { OperationMarchandLocationDB } from "../../db/operation-marchand-location";
 
 function operationDeBase(mode: "investisseur" | "marchand"): Operation {
   return {
@@ -226,5 +227,78 @@ describe("calculerResultatsOperation — mode marchand", () => {
       { id: "l1", operation_id: "op-1", nom_lot: "Lot unique", type_lot: null, prix_revente_prevu: 250_000 },
     ];
     expect(() => calculerResultatsOperation(operation, [], null, null, lots)).not.toThrow();
+  });
+
+  it("sans locationMarchand, revenuLocatifNet est nul et la marge est inchangée (comportement par défaut)", () => {
+    const operation = operationDeBase("marchand");
+    const lots: LotMarchandDB[] = [
+      { id: "l1", operation_id: "op-1", nom_lot: "Lot unique", type_lot: null, prix_revente_prevu: 250_000 },
+    ];
+    const resultats = calculerResultatsOperation(operation, [], null, null, lots);
+    expect(resultats!.marchand!.revenuLocatifNet).toBe(0);
+  });
+
+  it("avec locationMarchand, la marge augmente du revenu locatif net sur la durée de location", () => {
+    const operation = operationDeBase("marchand");
+    const lots: LotMarchandDB[] = [
+      { id: "l1", operation_id: "op-1", nom_lot: "Lot unique", type_lot: null, prix_revente_prevu: 250_000 },
+    ];
+    const sansLocation = calculerResultatsOperation(operation, [], null, null, lots);
+
+    const locationMarchand: OperationMarchandLocationDB = {
+      id: "loc-1",
+      operation_id: "op-1",
+      duree_location_mois: 12,
+      loyer_mensuel: 900,
+      charges_recuperables: 0,
+      charges_non_recuperables: 500,
+      taxe_fonciere: 800,
+      assurance_pno: 150,
+      frais_gestion_pct: 0.08,
+      entretien_pct: 0.05,
+      vacance_locative_pct: 0.05,
+      autres_charges: 0,
+    };
+    const avecLocation = calculerResultatsOperation(
+      operation,
+      [],
+      null,
+      null,
+      lots,
+      undefined,
+      locationMarchand
+    );
+
+    expect(avecLocation!.marchand!.revenuLocatifNet).toBeGreaterThan(0);
+    expect(avecLocation!.marchand!.marge).toBeCloseTo(
+      sansLocation!.marchand!.marge + avecLocation!.marchand!.revenuLocatifNet,
+      6
+    );
+    // Le chiffre d'affaires (revente) et le coût de l'opération ne changent pas.
+    expect(avecLocation!.marchand!.chiffreAffairesTotal).toBe(sansLocation!.marchand!.chiffreAffairesTotal);
+    expect(avecLocation!.marchand!.coutTotalOperation).toBe(sansLocation!.marchand!.coutTotalOperation);
+  });
+
+  it("une durée de location à 0 n'ajoute aucun revenu locatif même si un loyer est renseigné", () => {
+    const operation = operationDeBase("marchand");
+    const lots: LotMarchandDB[] = [
+      { id: "l1", operation_id: "op-1", nom_lot: "Lot unique", type_lot: null, prix_revente_prevu: 250_000 },
+    ];
+    const locationMarchand: OperationMarchandLocationDB = {
+      id: "loc-1",
+      operation_id: "op-1",
+      duree_location_mois: 0,
+      loyer_mensuel: 900,
+      charges_recuperables: 0,
+      charges_non_recuperables: 0,
+      taxe_fonciere: 0,
+      assurance_pno: 0,
+      frais_gestion_pct: 0,
+      entretien_pct: 0,
+      vacance_locative_pct: 0,
+      autres_charges: 0,
+    };
+    const resultats = calculerResultatsOperation(operation, [], null, null, lots, undefined, locationMarchand);
+    expect(resultats!.marchand!.revenuLocatifNet).toBe(0);
   });
 });

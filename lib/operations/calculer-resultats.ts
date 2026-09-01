@@ -40,6 +40,8 @@ import type { LigneTravauxDB } from "../db/travaux-lignes";
 import type { FinancementDB } from "../db/financement";
 import type { OperationInvestisseurDB } from "../db/operation-investisseur";
 import type { LotMarchandDB } from "../db/operation-marchand-lots";
+import type { OperationMarchandLocationDB } from "../db/operation-marchand-location";
+import type { EntreesLocationMarchand } from "../calc-engine/marchand";
 
 export interface ResultatsOperation {
   coutTotalAcquisition: number;
@@ -83,7 +85,13 @@ export function calculerResultatsOperation(
    * indexation loyer/charges, frais de revente estimés), profil par profil — voir
    * lib/calc-engine/projection.ts. Ignoré en mode marchand (pas de projection).
    */
-  hypothesesProjection?: Partial<Record<ProfilProjection, HypothesesProjection>>
+  hypothesesProjection?: Partial<Record<ProfilProjection, HypothesesProjection>>,
+  /**
+   * Mode marchand uniquement — location du bien pendant la période de détention avant la
+   * revente (un marchand a jusqu'à ~5 ans pour vendre, cf. lib/calc-engine/marchand.ts).
+   * Absente ou durée nulle -> aucun revenu locatif compté, comportement inchangé.
+   */
+  locationMarchand?: OperationMarchandLocationDB | null
 ): ResultatsOperation | null {
   if (operation.prix_achat <= 0) return null;
   if (operation.mode === "investisseur" && (investisseur?.loyer_mensuel ?? 0) <= 0) return null;
@@ -209,7 +217,22 @@ export function calculerResultatsOperation(
     typeLot: l.type_lot ?? undefined,
     prixReventePrevu: l.prix_revente_prevu,
   }));
-  const entreesMarchand = { lots: lotsCalc, fraisRevente: operation.frais_revente };
+  const location: EntreesLocationMarchand | undefined = locationMarchand
+    ? {
+        dureeLocationMois: locationMarchand.duree_location_mois,
+        entreesLocatives: {
+          loyerMensuel: locationMarchand.loyer_mensuel,
+          chargesNonRecuperablesAnnuelles: locationMarchand.charges_non_recuperables,
+          taxeFonciereAnnuelle: locationMarchand.taxe_fonciere,
+          assurancePnoAnnuelle: locationMarchand.assurance_pno,
+          fraisGestionPct: locationMarchand.frais_gestion_pct,
+          entretienPct: locationMarchand.entretien_pct,
+          vacanceLocativePct: locationMarchand.vacance_locative_pct,
+          autresChargesAnnuelles: locationMarchand.autres_charges,
+        },
+      }
+    : undefined;
+  const entreesMarchand = { lots: lotsCalc, fraisRevente: operation.frais_revente, location };
   const detail = calculerMarchand(
     entreesMarchand,
     acquisition.coutTotalAcquisition,
@@ -227,7 +250,7 @@ export function calculerResultatsOperation(
     DELTAS_DEFAUT.pessimiste.travauxDeltaPct
   );
   const detailPessimiste = calculerMarchand(
-    { lots: lotsPessimistes, fraisRevente: entreesMarchand.fraisRevente },
+    { lots: lotsPessimistes, fraisRevente: entreesMarchand.fraisRevente, location },
     acquisition.coutTotalAcquisition,
     travauxPessimistes,
     detailFinancement.coutTotalCredit,

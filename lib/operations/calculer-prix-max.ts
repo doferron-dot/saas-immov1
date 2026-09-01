@@ -22,12 +22,13 @@
 import { calculerAcquisition, type TypeBien } from "../calc-engine/acquisition";
 import { calculerFinancement } from "../calc-engine/financement";
 import { calculerInvestisseur } from "../calc-engine/investisseur";
-import { calculerMarchand } from "../calc-engine/marchand";
+import { calculerMarchand, type EntreesLocationMarchand } from "../calc-engine/marchand";
 import { trouverPrixMaximum, type ResultatPrixMax } from "../calc-engine/prix-max";
 import type { Operation } from "../db/operations";
 import type { FinancementDB } from "../db/financement";
 import type { OperationInvestisseurDB } from "../db/operation-investisseur";
 import type { LotMarchandDB } from "../db/operation-marchand-lots";
+import type { OperationMarchandLocationDB } from "../db/operation-marchand-location";
 
 export type ObjectifInvestisseur = "rendementNet" | "cashFlowMensuel";
 export type ObjectifMarchand = "margePct" | "roi";
@@ -122,6 +123,9 @@ export interface EntreesPrixMaxMarchand {
   objectif: ObjectifMarchand;
   /** Fraction (0.15 pour 15%) pour margePct et roi. */
   valeurObjectif: number;
+  /** Location du bien avant la revente (cf. lib/calc-engine/marchand.ts) — fixe, comme les
+   *  travaux et les prix de revente des lots (voir l'en-tête de ce fichier). */
+  locationMarchand?: OperationMarchandLocationDB | null;
 }
 
 export function calculerPrixMaxMarchand(entrees: EntreesPrixMaxMarchand): ResultatPrixMax {
@@ -131,6 +135,21 @@ export function calculerPrixMaxMarchand(entrees: EntreesPrixMaxMarchand): Result
     typeLot: l.type_lot ?? undefined,
     prixReventePrevu: l.prix_revente_prevu,
   }));
+  const location: EntreesLocationMarchand | undefined = entrees.locationMarchand
+    ? {
+        dureeLocationMois: entrees.locationMarchand.duree_location_mois,
+        entreesLocatives: {
+          loyerMensuel: entrees.locationMarchand.loyer_mensuel,
+          chargesNonRecuperablesAnnuelles: entrees.locationMarchand.charges_non_recuperables,
+          taxeFonciereAnnuelle: entrees.locationMarchand.taxe_fonciere,
+          assurancePnoAnnuelle: entrees.locationMarchand.assurance_pno,
+          fraisGestionPct: entrees.locationMarchand.frais_gestion_pct,
+          entretienPct: entrees.locationMarchand.entretien_pct,
+          vacanceLocativePct: entrees.locationMarchand.vacance_locative_pct,
+          autresChargesAnnuelles: entrees.locationMarchand.autres_charges,
+        },
+      }
+    : undefined;
 
   return trouverPrixMaximum({
     objectif: entrees.valeurObjectif,
@@ -150,7 +169,7 @@ export function calculerPrixMaxMarchand(entrees: EntreesPrixMaxMarchand): Result
       const coutTotalCredit = detailFinancement?.coutTotalCredit ?? 0;
       const montantTotalInvesti = apport + coutTotalCredit;
       const detail = calculerMarchand(
-        { lots: lotsCalc, fraisRevente: entrees.operation.frais_revente },
+        { lots: lotsCalc, fraisRevente: entrees.operation.frais_revente, location },
         acquisition.coutTotalAcquisition,
         entrees.totalTravaux,
         coutTotalCredit,

@@ -17,12 +17,13 @@
 import { calculerAcquisition, type TypeBien } from "../calc-engine/acquisition";
 import { calculerTravaux } from "../calc-engine/travaux";
 import { calculerFinancement } from "../calc-engine/financement";
-import { calculerMarchand, type DetailMarchand } from "../calc-engine/marchand";
+import { calculerMarchand, type DetailMarchand, type EntreesLocationMarchand } from "../calc-engine/marchand";
 import { appliquerDeltaPct, appliquerDeltaDureeMois, DELTAS_DEFAUT, type DeltasScenario } from "../calc-engine/scenarios";
 import type { Operation } from "../db/operations";
 import type { LigneTravauxDB } from "../db/travaux-lignes";
 import type { FinancementDB } from "../db/financement";
 import type { LotMarchandDB } from "../db/operation-marchand-lots";
+import type { OperationMarchandLocationDB } from "../db/operation-marchand-location";
 
 export type TypeScenarioMarchand = "pessimiste" | "réaliste" | "optimiste";
 
@@ -36,10 +37,32 @@ export function calculerScenariosMarchand(
   operation: Operation,
   travaux: LigneTravauxDB[],
   financement: FinancementDB | null,
-  lots: LotMarchandDB[]
+  lots: LotMarchandDB[],
+  /**
+   * Location du bien avant la revente (cf. lib/calc-engine/marchand.ts) — identique dans
+   * les 3 scénarios (pas de delta appliqué dessus, pas plus que le prix d'achat ou les
+   * frais d'acquisition, cf. commentaire en tête de fichier).
+   */
+  locationMarchand?: OperationMarchandLocationDB | null
 ): ResultatScenarioMarchand[] | null {
   if (operation.prix_achat <= 0) return null;
   if (!lots.some((l) => l.prix_revente_prevu > 0)) return null;
+
+  const location: EntreesLocationMarchand | undefined = locationMarchand
+    ? {
+        dureeLocationMois: locationMarchand.duree_location_mois,
+        entreesLocatives: {
+          loyerMensuel: locationMarchand.loyer_mensuel,
+          chargesNonRecuperablesAnnuelles: locationMarchand.charges_non_recuperables,
+          taxeFonciereAnnuelle: locationMarchand.taxe_fonciere,
+          assurancePnoAnnuelle: locationMarchand.assurance_pno,
+          fraisGestionPct: locationMarchand.frais_gestion_pct,
+          entretienPct: locationMarchand.entretien_pct,
+          vacanceLocativePct: locationMarchand.vacance_locative_pct,
+          autresChargesAnnuelles: locationMarchand.autres_charges,
+        },
+      }
+    : undefined;
 
   const acquisition = calculerAcquisition({
     prixAchat: operation.prix_achat,
@@ -94,7 +117,7 @@ export function calculerScenariosMarchand(
     const montantTotalInvesti = apport + coutTotalCredit;
 
     const detail = calculerMarchand(
-      { lots: lotsAjustes, fraisRevente: operation.frais_revente },
+      { lots: lotsAjustes, fraisRevente: operation.frais_revente, location },
       acquisition.coutTotalAcquisition,
       totalTravaux,
       coutTotalCredit,
